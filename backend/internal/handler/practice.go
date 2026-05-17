@@ -26,6 +26,7 @@ func (h *PracticeHandler) List(w http.ResponseWriter, r *http.Request) {
 	filter := domain.PracticeFilter{
 		City:     q.Get("city"),
 		Category: q.Get("category"),
+		Search:   q.Get("search"),
 		Status:   domain.StatusApproved,
 		Page:     page,
 		PerPage:  perPage,
@@ -147,22 +148,6 @@ func (h *PracticeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *PracticeHandler) Vote(w http.ResponseWriter, r *http.Request) {
-	user := UserFromContext(r.Context())
-	id, err := parseID(r, "id")
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid id")
-		return
-	}
-
-	voted, err := h.svc.Vote(r.Context(), user.ID, id)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to vote")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]bool{"voted": voted})
-}
 
 func (h *PracticeHandler) ListComments(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r, "id")

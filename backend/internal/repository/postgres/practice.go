@@ -20,12 +20,15 @@ func NewPracticeRepository(db *pgxpool.Pool) *PracticeRepository {
 func (r *PracticeRepository) Create(ctx context.Context, p *domain.Practice) (*domain.Practice, error) {
 	var result domain.Practice
 	err := r.db.QueryRow(ctx,
-		`INSERT INTO practices (title, description, city, category, status, author_id)
-		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id, title, description, city, category, status, author_id, created_at`,
-		p.Title, p.Description, p.City, p.Category, p.Status, p.AuthorID,
-	).Scan(&result.ID, &result.Title, &result.Description, &result.City,
-		&result.Category, &result.Status, &result.AuthorID, &result.CreatedAt)
+		`INSERT INTO practices (title, description, city, category, address, latitude, longitude, budget_rub, implemented_at, status, author_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		 RETURNING id, title, description, city, category, address, latitude, longitude, budget_rub, implemented_at, status, author_id, rating, created_at`,
+		p.Title, p.Description, p.City, p.Category, p.Address, p.Latitude, p.Longitude, p.BudgetRub, p.ImplementedAt, p.Status, p.AuthorID,
+	).Scan(
+		&result.ID, &result.Title, &result.Description, &result.City, &result.Category,
+		&result.Address, &result.Latitude, &result.Longitude, &result.BudgetRub, &result.ImplementedAt,
+		&result.Status, &result.AuthorID, &result.Rating, &result.CreatedAt,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("create practice: %w", err)
 	}
@@ -35,15 +38,20 @@ func (r *PracticeRepository) Create(ctx context.Context, p *domain.Practice) (*d
 func (r *PracticeRepository) GetByID(ctx context.Context, id int64) (*domain.Practice, error) {
 	var p domain.Practice
 	err := r.db.QueryRow(ctx,
-		`SELECT p.id, p.title, p.description, p.city, p.category, p.status, p.author_id, p.created_at,
-		        COUNT(v.user_id) as vote_count
+		`SELECT p.id, p.title, p.description, p.city, p.category,
+		        p.address, p.latitude, p.longitude, p.budget_rub, p.implemented_at,
+		        p.status, p.author_id, p.rating, p.created_at,
+		        COUNT(rt.id) AS vote_count
 		 FROM practices p
-		 LEFT JOIN votes v ON v.practice_id = p.id
+		 LEFT JOIN ratings rt ON rt.practice_id = p.id AND rt.is_suspicious = FALSE
 		 WHERE p.id = $1
 		 GROUP BY p.id`,
 		id,
-	).Scan(&p.ID, &p.Title, &p.Description, &p.City, &p.Category,
-		&p.Status, &p.AuthorID, &p.CreatedAt, &p.VoteCount)
+	).Scan(
+		&p.ID, &p.Title, &p.Description, &p.City, &p.Category,
+		&p.Address, &p.Latitude, &p.Longitude, &p.BudgetRub, &p.ImplementedAt,
+		&p.Status, &p.AuthorID, &p.Rating, &p.CreatedAt, &p.VoteCount,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("get practice by id: %w", err)
 	}
@@ -70,6 +78,11 @@ func (r *PracticeRepository) List(ctx context.Context, f domain.PracticeFilter) 
 		args = append(args, f.Status)
 		argIdx++
 	}
+	if f.Search != "" {
+		conditions = append(conditions, fmt.Sprintf("(p.title ILIKE $%d OR p.description ILIKE $%d)", argIdx, argIdx))
+		args = append(args, "%"+f.Search+"%")
+		argIdx++
+	}
 
 	where := ""
 	if len(conditions) > 0 {
@@ -94,13 +107,15 @@ func (r *PracticeRepository) List(ctx context.Context, f domain.PracticeFilter) 
 
 	args = append(args, perPage, offset)
 	rows, err := r.db.Query(ctx, fmt.Sprintf(
-		`SELECT p.id, p.title, p.description, p.city, p.category, p.status, p.author_id, p.created_at,
-		        COUNT(v.user_id) as vote_count
+		`SELECT p.id, p.title, p.description, p.city, p.category,
+		        p.address, p.latitude, p.longitude, p.budget_rub, p.implemented_at,
+		        p.status, p.author_id, p.rating, p.created_at,
+		        COUNT(rt.id) AS vote_count
 		 FROM practices p
-		 LEFT JOIN votes v ON v.practice_id = p.id
+		 LEFT JOIN ratings rt ON rt.practice_id = p.id AND rt.is_suspicious = FALSE
 		 %s
 		 GROUP BY p.id
-		 ORDER BY p.created_at DESC
+		 ORDER BY p.rating DESC, p.created_at DESC
 		 LIMIT $%d OFFSET $%d`, where, argIdx, argIdx+1),
 		args...,
 	)
@@ -112,8 +127,11 @@ func (r *PracticeRepository) List(ctx context.Context, f domain.PracticeFilter) 
 	var practices []*domain.Practice
 	for rows.Next() {
 		var p domain.Practice
-		if err := rows.Scan(&p.ID, &p.Title, &p.Description, &p.City, &p.Category,
-			&p.Status, &p.AuthorID, &p.CreatedAt, &p.VoteCount); err != nil {
+		if err := rows.Scan(
+			&p.ID, &p.Title, &p.Description, &p.City, &p.Category,
+			&p.Address, &p.Latitude, &p.Longitude, &p.BudgetRub, &p.ImplementedAt,
+			&p.Status, &p.AuthorID, &p.Rating, &p.CreatedAt, &p.VoteCount,
+		); err != nil {
 			return nil, 0, err
 		}
 		practices = append(practices, &p)
@@ -124,12 +142,17 @@ func (r *PracticeRepository) List(ctx context.Context, f domain.PracticeFilter) 
 func (r *PracticeRepository) Update(ctx context.Context, p *domain.Practice) (*domain.Practice, error) {
 	var result domain.Practice
 	err := r.db.QueryRow(ctx,
-		`UPDATE practices SET title=$1, description=$2, city=$3, category=$4, status=$5
-		 WHERE id=$6
-		 RETURNING id, title, description, city, category, status, author_id, created_at`,
-		p.Title, p.Description, p.City, p.Category, p.Status, p.ID,
-	).Scan(&result.ID, &result.Title, &result.Description, &result.City,
-		&result.Category, &result.Status, &result.AuthorID, &result.CreatedAt)
+		`UPDATE practices SET title=$1, description=$2, city=$3, category=$4, status=$5,
+		        address=$6, latitude=$7, longitude=$8, budget_rub=$9, implemented_at=$10
+		 WHERE id=$11
+		 RETURNING id, title, description, city, category, address, latitude, longitude, budget_rub, implemented_at, status, author_id, rating, created_at`,
+		p.Title, p.Description, p.City, p.Category, p.Status,
+		p.Address, p.Latitude, p.Longitude, p.BudgetRub, p.ImplementedAt, p.ID,
+	).Scan(
+		&result.ID, &result.Title, &result.Description, &result.City, &result.Category,
+		&result.Address, &result.Latitude, &result.Longitude, &result.BudgetRub, &result.ImplementedAt,
+		&result.Status, &result.AuthorID, &result.Rating, &result.CreatedAt,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("update practice: %w", err)
 	}
@@ -143,5 +166,13 @@ func (r *PracticeRepository) Delete(ctx context.Context, id int64) error {
 
 func (r *PracticeRepository) UpdateStatus(ctx context.Context, id int64, status domain.PracticeStatus) error {
 	_, err := r.db.Exec(ctx, `UPDATE practices SET status=$1 WHERE id=$2`, status, id)
+	return err
+}
+
+func (r *PracticeRepository) UpdateRating(ctx context.Context, id int64, rating float64, count int) error {
+	_, err := r.db.Exec(ctx,
+		`UPDATE practices SET rating=$1, rating_count=$2 WHERE id=$3`,
+		rating, count, id,
+	)
 	return err
 }

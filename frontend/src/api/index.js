@@ -24,8 +24,8 @@ export const api = {
   },
 
   // Auth
-  register: (email, password) =>
-    api.fetch('/api/auth/register', { method: 'POST', body: { email, password } }),
+  register: (email, password, socialRole = 'resident') =>
+    api.fetch('/api/auth/register', { method: 'POST', body: { email, password, social_role: socialRole } }),
   login: (email, password) =>
     api.fetch('/api/auth/login', { method: 'POST', body: { email, password } }),
 
@@ -44,8 +44,11 @@ export const api = {
   deletePractice: (id) =>
     api.fetch(`/api/practices/${id}`, { method: 'DELETE' }),
 
-  // Votes
-  vote: (id) => api.fetch(`/api/practices/${id}/vote`, { method: 'POST' }),
+  // Ratings
+  rate: (id, data) =>
+    api.fetch(`/api/practices/${id}/rate`, { method: 'POST', body: data }),
+  getMyRating: (id) => api.fetch(`/api/practices/${id}/rate`),
+  getRatingStats: (id) => api.fetch(`/api/practices/${id}/rating`),
 
   // Comments
   getComments: (id) => api.fetch(`/api/practices/${id}/comments`),

@@ -13,6 +13,7 @@ import (
 func NewRouter(
 	authSvc *service.AuthService,
 	practiceSvc *service.PracticeService,
+	ratingSvc *service.RatingService,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -28,6 +29,7 @@ func NewRouter(
 	authHandler := NewAuthHandler(authSvc)
 	practiceHandler := NewPracticeHandler(practiceSvc)
 	moderationHandler := NewModerationHandler(practiceSvc)
+	ratingHandler := NewRatingHandler(ratingSvc)
 
 	auth := AuthMiddleware(authSvc)
 	moderatorOnly := RequireRole(domain.RoleModerator)
@@ -37,18 +39,22 @@ func NewRouter(
 		r.Post("/auth/register", authHandler.Register)
 		r.Post("/auth/login", authHandler.Login)
 
-		// Practices
+		// Practices (public)
 		r.Get("/practices", practiceHandler.List)
 		r.Get("/practices/{id}", practiceHandler.Get)
 		r.Get("/practices/{id}/comments", practiceHandler.ListComments)
+		r.Get("/practices/{id}/rating", ratingHandler.GetStats)
 
+		// Practices (authenticated)
 		r.Group(func(r chi.Router) {
 			r.Use(auth)
 			r.Post("/practices", practiceHandler.Create)
-			r.Post("/practices/{id}/vote", practiceHandler.Vote)
+			r.Post("/practices/{id}/rate", ratingHandler.Rate)
+			r.Get("/practices/{id}/rate", ratingHandler.GetMyRating)
 			r.Post("/practices/{id}/comments", practiceHandler.AddComment)
 		})
 
+		// Practices (moderator)
 		r.Group(func(r chi.Router) {
 			r.Use(auth, moderatorOnly)
 			r.Put("/practices/{id}", practiceHandler.Update)
