@@ -50,7 +50,7 @@
                 <div class="rating-big">
                   <span class="rating-score">{{ displayScore }}</span>
                   <span class="rating-stars stars">★★★★★</span>
-                  <span class="rating-votes">{{ practice.vote_count }} оценок</span>
+                  <span class="rating-votes">{{ ratingStats?.count ?? practice.vote_count }} оценок</span>
                 </div>
                 <div class="rating-meta">
                   <div class="meta-item">
@@ -104,7 +104,7 @@
 
               <!-- Actions -->
               <div class="practice-actions">
-                <VoteButton :practice-id="practice.id" :initial-count="practice.vote_count" />
+                <VoteButton :practice-id="practice.id" @rated="refreshRating" />
                 <button class="btn btn-outline">↗ Поделиться</button>
               </div>
             </div>
@@ -127,27 +127,49 @@ import CommentList from '../../components/CommentList.vue'
 
 const route = useRoute()
 const practice = ref(null)
+const ratingStats = ref(null)
 const loading = ref(true)
 const error = ref(null)
 
-const statusLabels = { pending: 'На модерации', approved: 'Одобрено', rejected: 'Отклонено' }
+const statusLabels = { pending: 'На модерации', approved: 'Одобрено', rejected: 'Отклонено', best_practice: 'Лучшая практика' }
 const statusLabel = computed(() => statusLabels[practice.value?.status] || '')
 const formattedDate = computed(() =>
   practice.value ? new Date(practice.value.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : ''
 )
 const displayScore = computed(() => {
-  if (!practice.value) return '0.0'
-  return (3.5 + Math.min(1.4, (practice.value.vote_count || 0) * 0.02)).toFixed(1)
+  if (!ratingStats.value || ratingStats.value.count === 0) return (practice.value?.rating || 0).toFixed(1)
+  return ratingStats.value.rating.toFixed(1)
 })
 const authorInitials = computed(() => `#${practice.value?.author_id || '?'}`)
 
-const utilityPct = computed(() => practice.value ? 50 + ((practice.value.id * 17 + 3) % 45) : 0)
-const aestheticPct = computed(() => practice.value ? 40 + ((practice.value.id * 23 + 7) % 50) : 0)
-const ecologyPct = computed(() => practice.value ? 35 + ((practice.value.id * 31 + 11) % 55) : 0)
+const utilityPct = computed(() => {
+  if (ratingStats.value?.count > 0) return Math.round((ratingStats.value.avg_utility / 5) * 100)
+  return practice.value ? 50 + ((practice.value.id * 17 + 3) % 45) : 0
+})
+const aestheticPct = computed(() => {
+  if (ratingStats.value?.count > 0) return Math.round((ratingStats.value.avg_aesthetics / 5) * 100)
+  return practice.value ? 40 + ((practice.value.id * 23 + 7) % 50) : 0
+})
+const ecologyPct = computed(() => {
+  if (ratingStats.value?.count > 0) return Math.round((ratingStats.value.avg_ecology / 5) * 100)
+  return practice.value ? 35 + ((practice.value.id * 31 + 11) % 55) : 0
+})
+
+async function refreshRating() {
+  try {
+    ratingStats.value = await api.getRatingStats(route.params.id)
+  } catch {
+    // ignore
+  }
+}
 
 onMounted(async () => {
   try {
-    practice.value = await api.getPractice(route.params.id)
+    const [p] = await Promise.all([
+      api.getPractice(route.params.id),
+    ])
+    practice.value = p
+    await refreshRating()
   } catch {
     error.value = 'Практика не найдена'
   } finally {

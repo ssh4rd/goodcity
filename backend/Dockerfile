@@ -1,6 +1,7 @@
 FROM golang:1.22-alpine AS builder
 WORKDIR /app
-COPY backend/go.mod backend/go.sum ./
+ENV GONOSUMDB=*
+COPY backend/go.mod ./
 RUN go mod download
 COPY backend/ .
 RUN go build -o /api ./cmd/api/main.go

@@ -11,16 +11,14 @@ import (
 
 type PracticeService struct {
 	practices *postgres.PracticeRepository
-	votes     *postgres.VoteRepository
 	comments  *postgres.CommentRepository
 }
 
 func NewPracticeService(
 	practices *postgres.PracticeRepository,
-	votes *postgres.VoteRepository,
 	comments *postgres.CommentRepository,
 ) *PracticeService {
-	return &PracticeService{practices: practices, votes: votes, comments: comments}
+	return &PracticeService{practices: practices, comments: comments}
 }
 
 var ErrNotFound = errors.New("not found")
@@ -58,12 +56,12 @@ func (s *PracticeService) Reject(ctx context.Context, id int64) error {
 	return s.practices.UpdateStatus(ctx, id, domain.StatusRejected)
 }
 
-func (s *PracticeService) ListPending(ctx context.Context) ([]*domain.Practice, int, error) {
-	return s.practices.List(ctx, domain.PracticeFilter{Status: domain.StatusPending, Page: 1, PerPage: 100})
+func (s *PracticeService) MarkBestPractice(ctx context.Context, id int64) error {
+	return s.practices.UpdateStatus(ctx, id, domain.StatusBestPractice)
 }
 
-func (s *PracticeService) Vote(ctx context.Context, userID, practiceID int64) (bool, error) {
-	return s.votes.Toggle(ctx, userID, practiceID)
+func (s *PracticeService) ListPending(ctx context.Context) ([]*domain.Practice, int, error) {
+	return s.practices.List(ctx, domain.PracticeFilter{Status: domain.StatusPending, Page: 1, PerPage: 100})
 }
 
 func (s *PracticeService) AddComment(ctx context.Context, c *domain.Comment) (*domain.Comment, error) {

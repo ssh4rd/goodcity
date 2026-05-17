@@ -38,14 +38,15 @@ func main() {
 	userRepo := postgres.NewUserRepository(pool)
 	practiceRepo := postgres.NewPracticeRepository(pool)
 	commentRepo := postgres.NewCommentRepository(pool)
-	voteRepo := postgres.NewVoteRepository(pool)
+	ratingRepo := postgres.NewRatingRepository(pool)
 
 	// Services
 	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
-	practiceSvc := service.NewPracticeService(practiceRepo, voteRepo, commentRepo)
+	practiceSvc := service.NewPracticeService(practiceRepo, commentRepo)
+	ratingSvc := service.NewRatingService(ratingRepo, practiceRepo)
 
 	// Router
-	router := handler.NewRouter(authSvc, practiceSvc)
+	router := handler.NewRouter(authSvc, practiceSvc, ratingSvc)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Printf("Starting server on %s", addr)

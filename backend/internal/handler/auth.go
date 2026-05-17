@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"goodcity/backend/internal/domain"
 	"goodcity/backend/internal/service"
 )
 
@@ -17,8 +18,9 @@ func NewAuthHandler(auth *service.AuthService) *AuthHandler {
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email      string `json:"email"`
+		Password   string `json:"password"`
+		SocialRole string `json:"social_role"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -30,7 +32,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, token, err := h.auth.Register(r.Context(), req.Email, req.Password)
+	user, token, err := h.auth.Register(r.Context(), req.Email, req.Password, domain.SocialRole(req.SocialRole))
 	if err != nil {
 		if errors.Is(err, service.ErrEmailTaken) {
 			writeError(w, http.StatusConflict, "email already taken")

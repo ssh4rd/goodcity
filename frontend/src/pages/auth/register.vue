@@ -118,10 +118,10 @@ const form = ref({
 })
 
 const accountTypes = [
-  { value: 'resident', icon: '🏘', name: 'Житель города', desc: 'Оцениваю практики, делюсь опытом' },
-  { value: 'expert', icon: '🎓', name: 'Эксперт / специалист', desc: 'Профессиональная оценка по области знаний' },
-  { value: 'admin', icon: '🏛', name: 'Представитель администрации', desc: 'Управляю городскими проектами и инициативами' },
-  { value: 'business', icon: '🏢', name: 'Бизнес / организация', desc: 'Реализую практики в рамках проектов' },
+  { value: 'resident', icon: '🏘', name: 'Житель города', desc: 'Оцениваю практики, делюсь опытом', socialRole: 'resident' },
+  { value: 'expert', icon: '🎓', name: 'Эксперт / специалист', desc: 'Профессиональная оценка по области знаний', socialRole: 'specialist' },
+  { value: 'admin', icon: '🏛', name: 'Представитель администрации', desc: 'Управляю городскими проектами и инициативами', socialRole: 'official' },
+  { value: 'business', icon: '🏢', name: 'Бизнес / организация', desc: 'Реализую практики в рамках проектов', socialRole: 'activist' },
 ]
 
 async function submit() {
@@ -132,7 +132,9 @@ async function submit() {
   loading.value = true
   error.value = null
   try {
-    await auth.register(form.value.email, form.value.password)
+    const selected = accountTypes.find(t => t.value === form.value.accountType)
+    const socialRole = selected?.socialRole || 'resident'
+    await auth.register(form.value.email, form.value.password, socialRole)
     router.push('/')
   } catch (e) {
     error.value = e.data?.error || 'Ошибка регистрации'

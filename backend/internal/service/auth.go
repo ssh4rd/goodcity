@@ -24,13 +24,17 @@ func NewAuthService(users *postgres.UserRepository, jwtSecret string) *AuthServi
 var ErrInvalidCredentials = errors.New("invalid credentials")
 var ErrEmailTaken = errors.New("email already taken")
 
-func (s *AuthService) Register(ctx context.Context, email, password string) (*domain.User, string, error) {
+func (s *AuthService) Register(ctx context.Context, email, password string, socialRole domain.SocialRole) (*domain.User, string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, "", fmt.Errorf("hash password: %w", err)
 	}
 
-	user, err := s.users.Create(ctx, email, string(hash), domain.RoleUser)
+	if socialRole == "" {
+		socialRole = domain.SocialResident
+	}
+
+	user, err := s.users.Create(ctx, email, string(hash), domain.RoleUser, socialRole)
 	if err != nil {
 		// naive check for unique violation
 		if isUniqueViolation(err) {
