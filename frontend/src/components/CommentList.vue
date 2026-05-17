@@ -1,25 +1,53 @@
 <template>
-  <div class="comments">
-    <h3>Комментарии ({{ comments.length }})</h3>
+  <div class="comments-section">
+    <h2 class="comments-title">Комментарии ({{ comments.length }})</h2>
 
-    <div v-if="auth.user" class="comment-form">
-      <textarea v-model="text" placeholder="Написать комментарий..." rows="3"></textarea>
-      <button class="btn btn-primary" @click="submit" :disabled="!text.trim() || loading">
-        Отправить
-      </button>
+    <!-- Form -->
+    <div class="comment-form-wrap card">
+      <template v-if="auth.user">
+        <div class="comment-form">
+          <div class="comment-avatar me">{{ userInitial }}</div>
+          <input
+            v-model="text"
+            class="comment-input"
+            placeholder="Написать комментарий..."
+            @keydown.enter.exact.prevent="submit"
+          />
+          <button class="btn btn-primary btn-sm" @click="submit" :disabled="!text.trim() || loading">
+            Отправить
+          </button>
+        </div>
+      </template>
+      <p v-else class="auth-hint">
+        <router-link to="/auth/login" class="auth-link">Войдите</router-link>, чтобы оставить комментарий
+      </p>
     </div>
-    <p v-else class="auth-hint"><router-link to="/auth/login">Войдите</router-link>, чтобы оставить комментарий</p>
 
-    <div v-if="comments.length === 0" class="no-comments">Комментариев пока нет</div>
-    <div v-for="c in comments" :key="c.id" class="comment">
-      <div class="comment-meta">Пользователь #{{ c.user_id }} · {{ formatDate(c.created_at) }}</div>
-      <p>{{ c.text }}</p>
+    <!-- List -->
+    <div v-if="comments.length === 0 && !loading" class="no-comments">Комментариев пока нет. Будьте первым!</div>
+
+    <div class="comment-list">
+      <div v-for="c in comments" :key="c.id" class="comment-item">
+        <div class="comment-avatar">{{ avatarLetter(c.user_id) }}</div>
+        <div class="comment-body">
+          <div class="comment-header">
+            <span class="comment-author">Пользователь #{{ c.user_id }}</span>
+            <span class="comment-time">{{ formatDate(c.created_at) }}</span>
+          </div>
+          <p class="comment-text">{{ c.text }}</p>
+          <div class="comment-actions">
+            <button class="comment-action">★★★★★</button>
+            <button class="comment-action">Ответить</button>
+            <button class="comment-action">Пожаловаться</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { api } from '../api'
 
@@ -30,10 +58,14 @@ const comments = ref([])
 const text = ref('')
 const loading = ref(false)
 
+const userInitial = computed(() => auth.user?.email?.[0]?.toUpperCase() || '?')
+function avatarLetter(userId) {
+  const letters = 'АБВГДЕЖЗИЙКЛМНОПРСТУФ'
+  return letters[(userId || 0) % letters.length]
+}
+
 onMounted(async () => {
-  try {
-    comments.value = await api.getComments(props.practiceId)
-  } catch {}
+  try { comments.value = await api.getComments(props.practiceId) } catch {}
 })
 
 async function submit() {
@@ -51,18 +83,87 @@ async function submit() {
 }
 
 function formatDate(d) {
-  return new Date(d).toLocaleString('ru-RU')
+  return new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
 }
 </script>
 
 <style scoped>
-.comments { margin-top: 2rem; }
-.comments h3 { margin-bottom: 1rem; }
-.comment-form { margin-bottom: 1.5rem; }
-.comment-form textarea { width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; margin-bottom: 0.5rem; }
-.comment { padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6; }
-.comment-meta { font-size: 0.8rem; color: #9ca3af; margin-bottom: 0.25rem; }
-.no-comments { color: #9ca3af; font-style: italic; padding: 1rem 0; }
-.auth-hint { color: #6b7280; margin-bottom: 1rem; }
-.auth-hint a { color: #2563eb; }
+.comments-section { margin-top: 40px; }
+.comments-title { font-size: 22px; font-weight: 700; margin-bottom: 20px; }
+
+.comment-form-wrap { padding: 16px 20px; margin-bottom: 24px; }
+.comment-form { display: flex; align-items: center; gap: 12px; }
+.comment-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+  flex-shrink: 0;
+  color: white;
+}
+.comment-avatar.me { background: var(--c-green); }
+.comment-input {
+  flex: 1;
+  padding: 10px 16px;
+  border: 1.5px solid var(--c-border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  background: #F8FAFB;
+  transition: border-color 0.15s;
+}
+.comment-input:focus { border-color: var(--c-green); background: white; }
+.comment-input::placeholder { color: #9CA3AF; }
+
+.auth-hint { font-size: 14px; color: var(--c-muted); }
+.auth-link { color: var(--c-green); font-weight: 500; }
+
+.no-comments { text-align: center; padding: 32px 0; color: var(--c-muted); font-size: 15px; }
+
+.comment-list { display: flex; flex-direction: column; gap: 0; }
+.comment-item {
+  display: flex;
+  gap: 14px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--c-border);
+}
+.comment-item:last-child { border-bottom: none; }
+
+.comment-avatar {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: var(--c-blue);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.comment-body { flex: 1; }
+.comment-header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.comment-author { font-size: 14px; font-weight: 600; }
+.comment-time { font-size: 12px; color: var(--c-muted); }
+.comment-text { font-size: 14px; color: var(--c-text); line-height: 1.6; margin-bottom: 8px; }
+.comment-actions { display: flex; gap: 12px; }
+.comment-action {
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: var(--c-muted);
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+.comment-action:first-child { color: var(--c-amber); }
+.comment-action:hover { color: var(--c-text); }
+
+@media (max-width: 480px) {
+  .comment-form { flex-wrap: wrap; }
+  .comment-input { min-width: 0; }
+  .comment-form .btn { width: 100%; }
+}
 </style>
