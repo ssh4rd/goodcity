@@ -1,19 +1,43 @@
-# Production overrides — builds images from Dockerfiles
-# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-
 services:
-  backend:
-    image: ""
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    volumes: []
+  postgres:
+    image: postgres:16-alpine
+    restart: always
     environment:
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in production}
-    command: ""
+      POSTGRES_DB: ${POSTGRES_DB:-goodcity}
+      POSTGRES_USER: ${POSTGRES_USER:-goodcity}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-goodcity}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/goodcity-backend:latest
+    restart: always
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-goodcity}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-goodcity}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      PORT: 8080
+      MIGRATIONS_DIR: /app/migrations
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   frontend:
-    build:
-      context: ./frontend
-    volumes: []
-    command: ""
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/goodcity-frontend:latest
+    restart: always
+    environment:
+      API_URL: http://backend:8080
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
