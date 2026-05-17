@@ -1,0 +1,19 @@
+# Production overrides — builds images from Dockerfiles
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+services:
+  backend:
+    image: ""
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    volumes: []
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in production}
+    command: ""
+
+  frontend:
+    build:
+      context: ./frontend
+    volumes: []
+    command: ""

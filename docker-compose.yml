@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: goodcity
+      POSTGRES_USER: goodcity
+      POSTGRES_PASSWORD: goodcity
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goodcity"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: golang:1.22
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+      - ./migrations:/migrations
+      - go_modules:/root/go/pkg/mod
+      - go_cache:/root/.cache/go-build
+    environment:
+      DATABASE_URL: postgres://goodcity:goodcity@postgres:5432/goodcity?sslmode=disable
+      JWT_SECRET: dev-secret
+      PORT: 8080
+      MIGRATIONS_DIR: /migrations
+      GONOSUMCHECK: "*"
+      GOFLAGS: -mod=mod
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: go run -mod=mod ./cmd/api/main.go
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - node_modules:/app/node_modules
+    environment:
+      API_URL: http://backend:8080
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    command: sh -c "npm install && npm run dev"
+
+volumes:
+  postgres_data:
+  go_modules:
+  go_cache:
+  node_modules:
