@@ -70,12 +70,25 @@ CI работает из коробки. Никаких секретов не т
 
 ### 2.2 Настройка сервера
 
-#### Создать пользователя для деплоя
+#### Установить Docker и Docker Compose
 
 ```bash
 # На сервере (под root)
+curl -fsSL https://get.docker.com | sh
+systemctl enable --now docker
+```
+
+#### Создать пользователя для деплоя
+
+```bash
+# Группа docker уже существует после установки Docker
 adduser deploy
 usermod -aG docker deploy
+
+# Перелогиниться чтобы группа применилась
+su - deploy
+docker ps   # должно работать без sudo
+exit
 ```
 
 #### Сгенерировать SSH-ключ
@@ -91,18 +104,16 @@ ssh-copy-id -i ~/.ssh/goodcity_deploy.pub deploy@YOUR_SERVER_IP
 cat ~/.ssh/goodcity_deploy
 ```
 
-#### Установить Docker и Docker Compose
-
-```bash
-# На сервере
-curl -fsSL https://get.docker.com | sh
-systemctl enable --now docker
-```
 
 #### Создать директорию проекта
 
 ```bash
+# Под root
 mkdir -p /opt/goodcity
+chown deploy:deploy /opt/goodcity
+
+# Переключиться на deploy
+su - deploy
 cd /opt/goodcity
 ```
 
