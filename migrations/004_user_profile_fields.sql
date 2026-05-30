@@ -1,0 +1,11 @@
+-- +goose Up
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS name TEXT,
+    ADD COLUMN IF NOT EXISTS city TEXT,
+    ADD COLUMN IF NOT EXISTS district TEXT;
+
+-- +goose Down
+ALTER TABLE users
+    DROP COLUMN IF EXISTS name,
+    DROP COLUMN IF EXISTS city,
+    DROP COLUMN IF EXISTS district;

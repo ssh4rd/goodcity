@@ -15,8 +15,14 @@
 
       <div class="actions">
         <template v-if="auth.user">
-          <button class="btn-login" @click="handleLogout">Выйти</button>
-          <router-link v-if="auth.isModerator" to="/admin" class="nav-link" style="margin-right:8px">Админ</router-link>
+          <router-link v-if="auth.isModerator" to="/admin" class="nav-link">Админ</router-link>
+          <div class="user-menu" @click.stop="toggleDropdown" ref="menuRef">
+            <div class="avatar">{{ initials }}</div>
+            <div v-if="open" class="dropdown">
+              <router-link to="/profile" class="dropdown-item" @click="open = false">Профиль</router-link>
+              <button class="dropdown-item dropdown-item--danger" @click="handleLogout">Выйти</button>
+            </div>
+          </div>
         </template>
         <template v-else>
           <router-link to="/auth/login" class="btn-login">Войти</router-link>
@@ -28,13 +34,31 @@
 </template>
 
 <script setup>
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
 
 const auth = useAuthStore()
 const router = useRouter()
+const open = ref(false)
+const menuRef = ref(null)
+
+const initials = computed(() => {
+  const name = auth.user?.name || auth.user?.email || ''
+  return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+})
+
+function toggleDropdown() { open.value = !open.value }
+
+function handleClickOutside(e) {
+  if (menuRef.value && !menuRef.value.contains(e.target)) open.value = false
+}
+
+onMounted(() => document.addEventListener('click', handleClickOutside))
+onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 
 function handleLogout() {
+  open.value = false
   auth.logout()
   router.push('/')
 }
@@ -121,6 +145,39 @@ function handleLogout() {
   transition: background 0.15s;
 }
 .btn-add:hover { background: var(--c-green-dark); }
+
+.user-menu { position: relative; cursor: pointer; }
+.avatar {
+  width: 36px; height: 36px;
+  background: var(--c-green); color: white;
+  border-radius: 50%; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  user-select: none;
+}
+.dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: white;
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  min-width: 160px;
+  overflow: hidden;
+  z-index: 200;
+}
+.dropdown-item {
+  display: block; width: 100%;
+  padding: 11px 16px;
+  font-size: 14px; color: var(--c-text);
+  text-align: left; background: none; border: none;
+  cursor: pointer; font-family: inherit;
+  transition: background 0.1s;
+  text-decoration: none;
+}
+.dropdown-item:hover { background: #F8FAFB; }
+.dropdown-item--danger { color: #DC2626; }
+.dropdown-item--danger:hover { background: #FEF2F2; }
 
 @media (max-width: 768px) {
   .header-inner { gap: 0; padding: 0 16px; }

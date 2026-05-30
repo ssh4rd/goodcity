@@ -24,8 +24,8 @@ export const api = {
   },
 
   // Auth
-  register: (email, password, socialRole = 'resident') =>
-    api.fetch('/api/auth/register', { method: 'POST', body: { email, password, social_role: socialRole } }),
+  register: (email, password, socialRole = 'resident', name = '', city = '', district = '') =>
+    api.fetch('/api/auth/register', { method: 'POST', body: { email, password, social_role: socialRole, name, city, district } }),
   login: (email, password) =>
     api.fetch('/api/auth/login', { method: 'POST', body: { email, password } }),
 
@@ -59,4 +59,14 @@ export const api = {
   getPending: () => api.fetch('/api/moderation/pending'),
   approve: (id) => api.fetch(`/api/moderation/${id}/approve`, { method: 'POST' }),
   reject: (id) => api.fetch(`/api/moderation/${id}/reject`, { method: 'POST' }),
+
+  // User
+  getMe: () => api.fetch('/api/user/me'),
+  updateMe: (data) => api.fetch('/api/user/me', { method: 'PUT', body: data }),
+
+  // Role verification
+  submitVerification: (formData) => api.fetch('/api/user/verification', { method: 'POST', body: formData }),
+  getPendingVerifications: () => api.fetch('/api/moderation/verifications'),
+  approveVerification: (id) => api.fetch(`/api/moderation/verifications/${id}/approve`, { method: 'POST' }),
+  rejectVerification: (id) => api.fetch(`/api/moderation/verifications/${id}/reject`, { method: 'POST' }),
 }

@@ -25,13 +25,19 @@ const (
 )
 
 type User struct {
-	ID              int64         `json:"id"`
-	Email           string        `json:"email"`
-	PasswordHash    string        `json:"-"`
-	Role            Role          `json:"role"`
-	IncomeBracket   IncomeBracket `json:"income_bracket"`
-	SocialRole      SocialRole    `json:"social_role"`
-	ReputationScore float64       `json:"reputation_score"`
-	ProfileWeight   float64       `json:"profile_weight"`
-	CreatedAt       time.Time     `json:"created_at"`
+	ID                 int64         `json:"id"`
+	Email              string        `json:"email"`
+	PasswordHash       string        `json:"-"`
+	Role               Role          `json:"role"`
+	Name               *string       `json:"name,omitempty"`
+	Phone              *string       `json:"phone,omitempty"`
+	City               *string       `json:"city,omitempty"`
+	District           *string       `json:"district,omitempty"`
+	IncomeBracket      IncomeBracket `json:"income_bracket"`
+	SocialRole         SocialRole    `json:"social_role"`
+	ReputationScore    float64       `json:"reputation_score"`
+	ProfileWeight      float64       `json:"profile_weight"`
+	IsRoleVerified     bool          `json:"is_role_verified"`
+	VerificationDocURL *string       `json:"verification_doc_url,omitempty"`
+	CreatedAt          time.Time     `json:"created_at"`
 }

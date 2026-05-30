@@ -8,6 +8,7 @@ type Config struct {
 	DatabaseURL string
 	JWTSecret   string
 	Port        string
+	UploadDir   string
 }
 
 func Load() *Config {
@@ -20,6 +21,7 @@ func Load() *Config {
 		DatabaseURL: getEnv("DATABASE_URL", "postgres://goodcity:goodcity@localhost:5432/goodcity?sslmode=disable"),
 		JWTSecret:   getEnv("JWT_SECRET", "dev-secret"),
 		Port:        port,
+		UploadDir:   getEnv("UPLOAD_DIR", "./uploads"),
 	}
 }
 

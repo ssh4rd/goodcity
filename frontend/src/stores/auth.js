@@ -20,8 +20,8 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function register(email, password, socialRole) {
-    const data = await api.register(email, password, socialRole)
+  async function register(email, password, socialRole, name, city, district) {
+    const data = await api.register(email, password, socialRole, name, city, district)
     setAuth(data)
     return data
   }

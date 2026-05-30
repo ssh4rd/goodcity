@@ -14,6 +14,7 @@ func NewRouter(
 	authSvc *service.AuthService,
 	practiceSvc *service.PracticeService,
 	ratingSvc *service.RatingService,
+	uploadDir string,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -26,9 +27,9 @@ func NewRouter(
 		AllowCredentials: true,
 	}))
 
-	authHandler := NewAuthHandler(authSvc)
+	authHandler := NewAuthHandler(authSvc, uploadDir)
 	practiceHandler := NewPracticeHandler(practiceSvc)
-	moderationHandler := NewModerationHandler(practiceSvc)
+	moderationHandler := NewModerationHandler(practiceSvc, authSvc)
 	ratingHandler := NewRatingHandler(ratingSvc)
 
 	auth := AuthMiddleware(authSvc)
@@ -48,10 +49,13 @@ func NewRouter(
 		// Practices (authenticated)
 		r.Group(func(r chi.Router) {
 			r.Use(auth)
+			r.Get("/user/me", authHandler.Me)
+			r.Put("/user/me", authHandler.UpdateMe)
 			r.Post("/practices", practiceHandler.Create)
 			r.Post("/practices/{id}/rate", ratingHandler.Rate)
 			r.Get("/practices/{id}/rate", ratingHandler.GetMyRating)
 			r.Post("/practices/{id}/comments", practiceHandler.AddComment)
+			r.Post("/user/verification", authHandler.SubmitVerification)
 		})
 
 		// Practices (moderator)
@@ -67,7 +71,13 @@ func NewRouter(
 			r.Get("/moderation/pending", moderationHandler.ListPending)
 			r.Post("/moderation/{id}/approve", moderationHandler.Approve)
 			r.Post("/moderation/{id}/reject", moderationHandler.Reject)
+			r.Get("/moderation/verifications", moderationHandler.ListPendingVerifications)
+			r.Post("/moderation/verifications/{id}/approve", moderationHandler.ApproveVerification)
+			r.Post("/moderation/verifications/{id}/reject", moderationHandler.RejectVerification)
 		})
+
+		// Static files for uploads
+		r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir))))
 	})
 
 	return r

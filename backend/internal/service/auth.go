@@ -24,7 +24,7 @@ func NewAuthService(users *postgres.UserRepository, jwtSecret string) *AuthServi
 var ErrInvalidCredentials = errors.New("invalid credentials")
 var ErrEmailTaken = errors.New("email already taken")
 
-func (s *AuthService) Register(ctx context.Context, email, password string, socialRole domain.SocialRole) (*domain.User, string, error) {
+func (s *AuthService) Register(ctx context.Context, email, password string, socialRole domain.SocialRole, name, city, district *string) (*domain.User, string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, "", fmt.Errorf("hash password: %w", err)
@@ -34,7 +34,7 @@ func (s *AuthService) Register(ctx context.Context, email, password string, soci
 		socialRole = domain.SocialResident
 	}
 
-	user, err := s.users.Create(ctx, email, string(hash), domain.RoleUser, socialRole)
+	user, err := s.users.Create(ctx, email, string(hash), domain.RoleUser, socialRole, name, city, district)
 	if err != nil {
 		// naive check for unique violation
 		if isUniqueViolation(err) {
@@ -105,6 +105,30 @@ func (s *AuthService) generateToken(user *domain.User) (string, error) {
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(s.jwtSecret)
+}
+
+func (s *AuthService) UpdateMe(ctx context.Context, id int64, name, phone, city, district *string, socialRole domain.SocialRole, incomeBracket domain.IncomeBracket) (*domain.User, error) {
+	return s.users.Update(ctx, id, name, phone, city, district, socialRole, incomeBracket)
+}
+
+func (s *AuthService) GetByID(ctx context.Context, id int64) (*domain.User, error) {
+	return s.users.GetByID(ctx, id)
+}
+
+func (s *AuthService) SubmitVerification(ctx context.Context, userID int64, docURL string) error {
+	return s.users.SetVerificationDoc(ctx, userID, docURL)
+}
+
+func (s *AuthService) ApproveVerification(ctx context.Context, userID int64) error {
+	return s.users.SetRoleVerified(ctx, userID, true)
+}
+
+func (s *AuthService) RejectVerification(ctx context.Context, userID int64) error {
+	return s.users.SetRoleVerified(ctx, userID, false)
+}
+
+func (s *AuthService) ListPendingVerifications(ctx context.Context) ([]*domain.User, error) {
+	return s.users.ListPendingVerifications(ctx)
 }
 
 func isUniqueViolation(err error) bool {
