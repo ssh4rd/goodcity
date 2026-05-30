@@ -22,6 +22,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       PORT: 8080
       MIGRATIONS_DIR: /app/migrations
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
     ports:
       - "8080:8080"
     depends_on:
@@ -29,6 +32,10 @@ services:
         condition: service_healthy
 
   frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_DADATA_TOKEN: ${VITE_DADATA_TOKEN:-}
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/goodcity-frontend:latest
     restart: always
     environment:
@@ -41,3 +48,4 @@ services:
 
 volumes:
   postgres_data:
+  uploads:
