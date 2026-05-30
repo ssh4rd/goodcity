@@ -22,6 +22,11 @@ func main() {
 
 	ctx := context.Background()
 
+	// Ensure upload directory exists
+	if err := os.MkdirAll(cfg.UploadDir, 0755); err != nil {
+		log.Fatalf("create upload dir: %v", err)
+	}
+
 	// Run migrations
 	if err := runMigrations(cfg.DatabaseURL); err != nil {
 		log.Fatalf("migrations: %v", err)
@@ -46,7 +51,7 @@ func main() {
 	ratingSvc := service.NewRatingService(ratingRepo, practiceRepo)
 
 	// Router
-	router := handler.NewRouter(authSvc, practiceSvc, ratingSvc)
+	router := handler.NewRouter(authSvc, practiceSvc, ratingSvc, cfg.UploadDir)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Printf("Starting server on %s", addr)

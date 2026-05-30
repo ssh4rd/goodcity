@@ -75,15 +75,69 @@
           <div class="fields-section">
             <p class="section-label">Город и социальный профиль</p>
             <div class="fields-grid-2">
-              <div class="form-field">
+              <!-- City autocomplete -->
+              <div class="form-field ac-wrap">
                 <label class="form-label">Город *</label>
-                <input v-model="form.city" type="text" class="form-input" placeholder="Волгоград" required />
+                <input
+                  v-model="form.city"
+                  type="text"
+                  class="form-input"
+                  placeholder="Начните вводить город..."
+                  required
+                  autocomplete="off"
+                  @input="onCityInput"
+                  @blur="cityBlur"
+                  @focus="form.city.length >= 2 && onCityInput()"
+                />
+                <ul v-if="citySuggestions.length" class="ac-dropdown">
+                  <li
+                    v-for="s in citySuggestions"
+                    :key="s.value"
+                    class="ac-item"
+                    @mousedown.prevent="selectCity(s)"
+                  >{{ s.data.city || s.value }}</li>
+                </ul>
               </div>
-              <div class="form-field">
+              <!-- District autocomplete -->
+              <div class="form-field ac-wrap">
                 <label class="form-label">Район</label>
-                <input v-model="form.district" type="text" class="form-input" placeholder="Центральный" />
+                <input
+                  v-model="form.district"
+                  type="text"
+                  class="form-input"
+                  :placeholder="form.city ? 'Начните вводить район...' : 'Сначала выберите город'"
+                  :disabled="!form.city"
+                  autocomplete="off"
+                  @input="onDistrictInput"
+                  @blur="districtBlur"
+                />
+                <ul v-if="districtSuggestions.length" class="ac-dropdown">
+                  <li
+                    v-for="s in districtSuggestions"
+                    :key="s.value"
+                    class="ac-item"
+                    @mousedown.prevent="selectDistrict(s)"
+                  >{{ s.data.city_district || s.value }}</li>
+                </ul>
               </div>
             </div>
+          </div>
+
+          <!-- Document upload for non-resident roles -->
+          <div v-if="form.accountType !== 'resident'" class="fields-section">
+            <div class="section-header-row">
+              <p class="section-label">Документ для верификации роли</p>
+              <span class="section-hint">Необязательно — можно загрузить позже</span>
+            </div>
+            <label class="upload-area" :class="{ 'has-file': docFile }">
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" class="upload-hidden" @change="onFileChange" />
+              <span v-if="!docFile" class="upload-placeholder">
+                <span class="upload-icon">📄</span>
+                <span>Загрузите диплом, удостоверение или выписку ЕГРЮЛ</span>
+                <span class="upload-hint">PDF, JPG, PNG — до 10 МБ</span>
+              </span>
+              <span v-else class="upload-filename">✓ {{ docFile.name }}</span>
+            </label>
           </div>
 
           <label class="checkbox-agree">
@@ -106,16 +160,50 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { api } from '../../api'
+import { useCitySearch, useDistrictSearch } from '../../composables/useDadata'
 
 const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
 const error = ref(null)
+const docFile = ref(null)
 
 const form = ref({
   name: '', email: '', password: '', passwordConfirm: '',
   accountType: 'resident', city: '', district: '', agreed: false
 })
+
+// DaData autocomplete
+const { suggestions: citySuggestions, search: searchCity, clear: clearCitySuggestions } = useCitySearch()
+const { suggestions: districtSuggestions, search: searchDistrict, clear: clearDistrictSuggestions } = useDistrictSearch()
+
+let cityTimer = null
+function onCityInput() {
+  clearTimeout(cityTimer)
+  cityTimer = setTimeout(() => searchCity(form.value.city), 300)
+}
+function cityBlur() { setTimeout(clearCitySuggestions, 150) }
+function selectCity(s) {
+  form.value.city = s.data.city || s.value
+  form.value.district = ''
+  clearCitySuggestions()
+}
+
+let districtTimer = null
+function onDistrictInput() {
+  clearTimeout(districtTimer)
+  districtTimer = setTimeout(() => searchDistrict(form.value.district, form.value.city), 300)
+}
+function districtBlur() { setTimeout(clearDistrictSuggestions, 150) }
+function selectDistrict(s) {
+  form.value.district = s.data.city_district || s.value
+  clearDistrictSuggestions()
+}
+
+function onFileChange(e) {
+  docFile.value = e.target.files[0] || null
+}
 
 const accountTypes = [
   { value: 'resident', icon: '🏘', name: 'Житель города', desc: 'Оцениваю практики, делюсь опытом', socialRole: 'resident' },
@@ -134,7 +222,12 @@ async function submit() {
   try {
     const selected = accountTypes.find(t => t.value === form.value.accountType)
     const socialRole = selected?.socialRole || 'resident'
-    await auth.register(form.value.email, form.value.password, socialRole)
+    await auth.register(form.value.email, form.value.password, socialRole, form.value.name, form.value.city, form.value.district)
+    if (docFile.value) {
+      const fd = new FormData()
+      fd.append('document', docFile.value)
+      await api.submitVerification(fd).catch(() => {})
+    }
     router.push('/')
   } catch (e) {
     error.value = e.data?.error || 'Ошибка регистрации'
@@ -229,6 +322,50 @@ async function submit() {
   justify-content: center;
 }
 
+
+.ac-wrap { position: relative; }
+.ac-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0; right: 0;
+  background: white;
+  border: 1.5px solid var(--c-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  z-index: 100;
+  list-style: none;
+  margin: 0; padding: 4px 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.ac-item {
+  padding: 9px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.ac-item:hover { background: #F0FDF4; }
+
+.upload-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--c-border);
+  border-radius: var(--radius-sm);
+  padding: 20px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  min-height: 80px;
+  position: relative;
+}
+.upload-area:hover { border-color: var(--c-green); }
+.upload-area.has-file { border-color: var(--c-green); background: #F0FDF4; }
+.upload-hidden { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.upload-placeholder { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.upload-icon { font-size: 24px; }
+.upload-placeholder span:nth-child(2) { font-size: 13px; color: var(--c-text); }
+.upload-hint { font-size: 12px; color: var(--c-muted); }
+.upload-filename { font-size: 13px; color: #065F46; font-weight: 500; }
 
 .checkbox-agree {
   display: flex;

@@ -1,15 +1,57 @@
 <template>
-  <AdminLayout :pending-count="practices.length">
+  <AdminLayout :pending-count="practices.length + verifications.length">
     <div class="moderation-page">
       <div class="page-header">
         <div>
-          <h1 class="page-title">Модерация практик</h1>
-          <p class="page-sub">{{ practices.length }} заявок ожидают проверки</p>
+          <h1 class="page-title">{{ mode === 'practices' ? 'Модерация практик' : 'Верификация ролей' }}</h1>
+          <p class="page-sub">{{ mode === 'practices' ? `${practices.length} заявок ожидают проверки` : `${verifications.length} запросов на верификацию` }}</p>
+        </div>
+        <div class="mode-switcher">
+          <button class="mode-btn" :class="{ active: mode === 'practices' }" @click="mode = 'practices'">Практики</button>
+          <button class="mode-btn" :class="{ active: mode === 'verifications' }" @click="mode = 'verifications'">
+            Верификация <span v-if="verifications.length" class="badge-num">{{ verifications.length }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Verifications mode -->
+      <div v-if="mode === 'verifications'">
+        <div v-if="vLoading" class="loading-state">Загрузка...</div>
+        <div v-else-if="vError" class="error-state">{{ vError }}</div>
+        <div v-else-if="verifications.length === 0" class="empty-table card" style="padding:40px;text-align:center;color:var(--c-muted)">
+          Нет запросов на верификацию
+        </div>
+        <div v-else class="table-wrap card">
+          <table class="mod-table">
+            <thead>
+              <tr>
+                <th>Пользователь</th>
+                <th>Роль</th>
+                <th>Документ</th>
+                <th>Дата</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="u in verifications" :key="u.id" class="table-row">
+                <td>{{ u.email }}</td>
+                <td><span class="role-badge">{{ roleLabel(u.social_role) }}</span></td>
+                <td>
+                  <a v-if="u.verification_doc_url" :href="u.verification_doc_url" target="_blank" class="doc-link">Открыть документ →</a>
+                </td>
+                <td class="col-date">{{ formatDate(u.created_at) }}</td>
+                <td class="col-actions" style="min-width:200px">
+                  <button class="action-approve" @click="approveVerif(u.id)" :disabled="vActionLoading === u.id">✓ Подтвердить</button>
+                  <button class="action-reject" @click="rejectVerif(u.id)" :disabled="vActionLoading === u.id">✕ Отклонить</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
       <!-- Toolbar -->
-      <div class="toolbar">
+      <div v-if="mode === 'practices'" class="toolbar">
         <div class="search-wrap">
           <span class="search-icon">
             <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -23,7 +65,7 @@
       </div>
 
       <!-- Status tabs -->
-      <div class="status-tabs">
+      <div v-if="mode === 'practices'" class="status-tabs">
         <button
           v-for="tab in tabs"
           :key="tab.value"
@@ -36,11 +78,11 @@
       </div>
 
       <!-- Loading -->
-      <div v-if="loading" class="loading-state">Загрузка...</div>
-      <div v-else-if="error" class="error-state">{{ error }}</div>
+      <div v-if="mode === 'practices' && loading" class="loading-state">Загрузка...</div>
+      <div v-else-if="mode === 'practices' && error" class="error-state">{{ error }}</div>
 
       <!-- Table -->
-      <div v-else class="table-wrap card">
+      <div v-if="mode === 'practices' && !loading && !error" class="table-wrap card">
         <div v-if="filteredPractices.length === 0" class="empty-table">
           <p>Нет практик в этой категории</p>
         </div>
@@ -80,7 +122,7 @@
       </div>
 
       <!-- Preview pane -->
-      <div v-if="selectedPractice" class="preview-card card">
+      <div v-if="mode === 'practices' && selectedPractice" class="preview-card card">
         <h3 class="preview-title">{{ selectedPractice.title }}</h3>
         <p class="preview-meta">{{ selectedPractice.city }} · {{ selectedPractice.category }}</p>
         <p class="preview-desc">{{ selectedPractice.description }}</p>
@@ -90,7 +132,7 @@
           <router-link :to="`/admin/practice/${selectedPractice.id}`" class="btn btn-outline btn-sm">Открыть →</router-link>
         </div>
       </div>
-      <div v-else-if="!loading && filteredPractices.length > 0" class="preview-placeholder card">
+      <div v-else-if="mode === 'practices' && !loading && filteredPractices.length > 0" class="preview-placeholder card">
         <p>Выберите практику в списке для просмотра деталей и принятия решения</p>
       </div>
     </div>
@@ -104,6 +146,9 @@ import { api } from '../../api'
 import AdminLayout from '../../components/AdminLayout.vue'
 
 const router = useRouter()
+const mode = ref('practices')
+
+// Practices
 const practices = ref([])
 const loading = ref(true)
 const error = ref(null)
@@ -111,6 +156,20 @@ const activeTab = ref('pending')
 const search = ref('')
 const actionLoading = ref(null)
 const selectedPractice = ref(null)
+
+// Verifications
+const verifications = ref([])
+const vLoading = ref(false)
+const vError = ref(null)
+const vActionLoading = ref(null)
+
+const socialRoleLabels = {
+  specialist: 'Эксперт / специалист',
+  official: 'Представитель администрации',
+  activist: 'Бизнес / организация',
+  resident: 'Житель города',
+}
+function roleLabel(role) { return socialRoleLabels[role] || role }
 
 const tabs = computed(() => [
   { value: 'all', label: 'Все', count: practices.value.length },
@@ -158,6 +217,26 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+async function approveVerif(id) {
+  vActionLoading.value = id
+  try {
+    await api.approveVerification(id)
+    verifications.value = verifications.value.filter(u => u.id !== id)
+  } catch {} finally {
+    vActionLoading.value = null
+  }
+}
+
+async function rejectVerif(id) {
+  vActionLoading.value = id
+  try {
+    await api.rejectVerification(id)
+    verifications.value = verifications.value.filter(u => u.id !== id)
+  } catch {} finally {
+    vActionLoading.value = null
+  }
+}
+
 onMounted(async () => {
   try {
     practices.value = await api.getPending()
@@ -165,6 +244,15 @@ onMounted(async () => {
     error.value = 'Ошибка загрузки'
   } finally {
     loading.value = false
+  }
+
+  vLoading.value = true
+  try {
+    verifications.value = await api.getPendingVerifications()
+  } catch {
+    vError.value = 'Ошибка загрузки верификаций'
+  } finally {
+    vLoading.value = false
   }
 })
 </script>
@@ -324,6 +412,43 @@ onMounted(async () => {
 
 .loading-state, .error-state { padding: 32px 0; color: var(--c-muted); text-align: center; }
 .empty-table { padding: 40px; text-align: center; color: var(--c-muted); font-size: 14px; }
+
+.mode-switcher { display: flex; gap: 6px; }
+.mode-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  border: 1.5px solid var(--c-border);
+  background: white;
+  color: var(--c-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.mode-btn.active { background: var(--c-navy); color: white; border-color: var(--c-navy); }
+.badge-num {
+  background: #EF4444;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 1px 6px;
+}
+.role-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.doc-link { color: var(--c-green); font-size: 13px; text-decoration: none; }
+.doc-link:hover { text-decoration: underline; }
 
 @media (max-width: 768px) {
   .page-title { font-size: 20px; }
