@@ -112,7 +112,7 @@ prod: build
 	$(PROD_DC) up -d
 
 build:
-	$(PROD_DC) build
+	$(PROD_DC) build --build-arg VITE_DADATA_TOKEN=$(VITE_DADATA_TOKEN)
 
 # ─── Utilities ────────────────────────────────────────────────────────────────
 moderator:

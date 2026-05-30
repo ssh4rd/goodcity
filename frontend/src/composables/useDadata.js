@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 
-const TOKEN = import.meta.env.VITE_DADATA_TOKEN || ''
+const TOKEN = __DADATA_TOKEN__ || ''
 
 const DADATA_URL = 'https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address'
 
